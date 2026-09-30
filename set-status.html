@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.min.css">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+  <div id="content">
+    <input id="search" class="sf-input" type="text" placeholder="Buscar status…" autocomplete="off">
+    <ul id="list" class="sf-list"></ul>
+    <p id="meta" class="sf-muted"></p>
+    <button id="clear" class="mod-danger" style="width:100%;margin:4px 0 0">Remover status</button>
+  </div>
+  <script src="./common.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+    var statuses = [], current = null;
+    var $list = document.getElementById('list');
+    var $search = document.getElementById('search');
+
+    function render() {
+      var q = $search.value.trim().toLowerCase();
+      var items = statuses.filter(function (s) { return s.name.toLowerCase().indexOf(q) !== -1; });
+      $list.innerHTML = items.length ? '' : '<li class="sf-empty">Nenhum status encontrado</li>';
+      items.forEach(function (s) {
+        var isCur = current && current.id === s.id;
+        var li = document.createElement('li');
+        li.innerHTML =
+          '<button class="sf-status' + (isCur ? ' is-current' : '') + '">' +
+          '<span class="sf-dot" style="background:' + sfHex(s.color) + '"></span>' +
+          sfEsc(s.name) + (isCur ? '<span class="sf-check">✓</span>' : '') + '</button>';
+        li.firstChild.addEventListener('click', function () { setStatus(s.id); });
+        $list.appendChild(li);
+      });
+      document.getElementById('meta').textContent = current && current.at
+        ? 'Alterado em ' + sfDate(current.at) + (current.by ? ' por ' + current.by : '')
+        : '';
+      document.getElementById('clear').style.display = current ? '' : 'none';
+      t.sizeTo('#content');
+    }
+
+    function setStatus(id) {
+      t.member('fullName').then(function (m) {
+        return t.set('card', 'shared', 'status', { id: id, at: Date.now(), by: m.fullName || '' });
+      }).then(function () { t.closePopup(); });
+    }
+
+    document.getElementById('clear').addEventListener('click', function () {
+      t.remove('card', 'shared', 'status').then(function () { t.closePopup(); });
+    });
+    $search.addEventListener('input', render);
+    $search.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var first = $list.querySelector('.sf-status');
+        if (first) first.click();
+      }
+    });
+
+    t.render(function () {
+      return TrelloPowerUp.Promise.all([sfGetStatuses(t), t.get('card', 'shared', 'status')])
+        .then(function (r) { statuses = r[0]; current = r[1] || null; render(); $search.focus(); });
+    });
+  </script>
+</body>
+</html>

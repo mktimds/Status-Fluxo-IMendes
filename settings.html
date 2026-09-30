@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.min.css">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+  <div id="content">
+    <p class="sf-muted" style="margin:0 0 8px">Status deste quadro, na ordem do fluxo. Sem limite de quantidade.</p>
+    <div id="rows"></div>
+    <div class="sf-actions">
+      <button id="add">+ Adicionar status</button>
+    </div>
+    <div class="sf-actions">
+      <button id="save" class="mod-primary">Salvar</button>
+      <button id="reset">Restaurar padrão</button>
+    </div>
+    <div id="error" class="sf-error"></div>
+    <p id="count" class="sf-muted"></p>
+  </div>
+  <script src="./common.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+    var list = [];
+    var $rows = document.getElementById('rows');
+    var $err = document.getElementById('error');
+
+    function colorOptions(sel) {
+      return Object.keys(SF_COLORS).map(function (k) {
+        return '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + SF_COLORS[k].label + '</option>';
+      }).join('');
+    }
+
+    function render() {
+      $rows.innerHTML = '';
+      list.forEach(function (s, i) {
+        var row = document.createElement('div');
+        row.className = 'sf-row';
+        row.innerHTML =
+          '<span class="sf-dot" style="background:' + sfHex(s.color) + '"></span>' +
+          '<input type="text" maxlength="40" value="' + sfEsc(s.name) + '" placeholder="Nome do status">' +
+          '<select title="Cor">' + colorOptions(s.color) + '</select>' +
+          '<button class="sf-icon-btn" title="Subir"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+          '<button class="sf-icon-btn" title="Descer"' + (i === list.length - 1 ? ' disabled' : '') + '>↓</button>' +
+          '<button class="sf-icon-btn" title="Excluir">✕</button>';
+        var inp = row.querySelector('input'), sel = row.querySelector('select'), btns = row.querySelectorAll('button');
+        inp.addEventListener('input', function () { s.name = inp.value; updateCount(); });
+        sel.addEventListener('change', function () { s.color = sel.value; render(); });
+        btns[0].addEventListener('click', function () { move(i, -1); });
+        btns[1].addEventListener('click', function () { move(i, 1); });
+        btns[2].addEventListener('click', function () {
+          if (confirm('Excluir "' + (s.name || 'status') + '"? Cards com esse status ficarão sem status.')) {
+            list.splice(i, 1); render();
+          }
+        });
+        $rows.appendChild(row);
+      });
+      updateCount();
+      t.sizeTo('#content');
+    }
+
+    function move(i, d) {
+      var j = i + d;
+      if (j < 0 || j >= list.length) return;
+      var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+      render();
+    }
+
+    function clean() {
+      return list.map(function (s) { return { id: s.id, name: s.name.trim(), color: s.color }; });
+    }
+
+    function updateCount() {
+      var size = JSON.stringify(clean()).length;
+      document.getElementById('count').textContent =
+        list.length + ' status · ' + Math.round(size / SF_MAX_CHARS * 100) + '% do espaço usado';
+    }
+
+    document.getElementById('add').addEventListener('click', function () {
+      var keys = Object.keys(SF_COLORS);
+      list.push({ id: sfUid(), name: '', color: keys[list.length % keys.length] });
+      render();
+      var inputs = $rows.querySelectorAll('input');
+      inputs[inputs.length - 1].focus();
+    });
+
+    document.getElementById('reset').addEventListener('click', function () {
+      if (confirm('Voltar para os status padrão? (Só é aplicado ao clicar em Salvar.)')) {
+        list = SF_DEFAULT_STATUSES.map(function (s) { return Object.assign({}, s); });
+        render();
+      }
+    });
+
+    document.getElementById('save').addEventListener('click', function () {
+      var data = clean();
+      $err.textContent = '';
+      if (!data.length) { $err.textContent = 'Crie pelo menos um status.'; return; }
+      if (data.some(function (s) { return !s.name; })) { $err.textContent = 'Preencha o nome de todos os status.'; return; }
+      var names = data.map(function (s) { return s.name.toLowerCase(); });
+      if (names.some(function (n, i) { return names.indexOf(n) !== i; })) { $err.textContent = 'Há status com nomes repetidos.'; return; }
+      if (JSON.stringify(data).length > SF_MAX_CHARS) { $err.textContent = 'Limite de espaço do Trello atingido. Encurte nomes ou remova status.'; return; }
+      t.set('board', 'shared', 'statuses', data).then(function () { t.closePopup(); });
+    });
+
+    t.render(function () {
+      return sfGetStatuses(t).then(function (s) {
+        list = s.map(function (x) { return Object.assign({}, x); });
+        render();
+      });
+    });
+  </script>
+</body>
+</html>

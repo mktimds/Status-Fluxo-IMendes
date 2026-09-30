@@ -1,0 +1,44 @@
+body { margin: 0; font-size: 14px; color: #172b4d; }
+#content { padding: 4px 2px 8px; }
+.sf-input { width: 100%; box-sizing: border-box; margin: 0 0 8px; }
+.sf-list { list-style: none; margin: 0; padding: 0; }
+.sf-status {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 8px; margin: 0 0 4px; border-radius: 4px; border: 0;
+  background: #f4f5f7; cursor: pointer; text-align: left; font-size: 14px;
+}
+.sf-status:hover { background: #ebecf0; }
+.sf-status.is-current { background: #e4f0f6; font-weight: 600; }
+.sf-dot { width: 12px; height: 12px; border-radius: 50%; flex: 0 0 12px; }
+.sf-check { margin-left: auto; color: #0079bf; }
+.sf-muted { color: #5e6c84; font-size: 12px; }
+.sf-empty { color: #5e6c84; padding: 8px; text-align: center; }
+
+/* Configurações */
+.sf-row { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+.sf-row input[type=text] { flex: 1; margin: 0; min-width: 0; }
+.sf-row select { width: 84px; margin: 0; }
+.sf-icon-btn {
+  margin: 0; padding: 4px 7px; min-width: 0; line-height: 1;
+  background: #f4f5f7; border: 0; border-radius: 3px; cursor: pointer;
+}
+.sf-icon-btn:hover { background: #dfe1e6; }
+.sf-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.sf-actions button { margin: 0; }
+.sf-error { color: #eb5a46; font-size: 12px; min-height: 16px; margin-top: 6px; }
+
+/* Visão geral */
+.sf-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.sf-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+  border-radius: 12px; background: #f4f5f7; cursor: pointer; border: 2px solid transparent;
+  font-size: 13px;
+}
+.sf-chip.is-active { border-color: #0079bf; background: #e4f0f6; }
+.sf-group { margin-bottom: 16px; }
+.sf-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 15px; }
+.sf-card {
+  display: block; padding: 8px 10px; margin-bottom: 4px; border-radius: 4px;
+  background: #fff; box-shadow: 0 1px 0 rgba(9,30,66,.25); cursor: pointer;
+}
+.sf-card:hover { background: #f4f5f7; }

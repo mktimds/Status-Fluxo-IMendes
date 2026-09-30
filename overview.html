@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://p.trellocdn.com/power-up.min.css">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <style> #content { padding: 12px 16px; } </style>
+</head>
+<body>
+  <div id="content">
+    <input id="search" class="sf-input" type="text" placeholder="Filtrar cards pelo nome…" autocomplete="off">
+    <div id="summary" class="sf-summary"></div>
+    <div id="groups"><p class="sf-empty">Carregando…</p></div>
+  </div>
+  <script src="./common.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+    var statuses = [], rows = [], listNames = {}, active = null;
+    var NONE = { id: '__none', name: 'Sem status', color: 'light-gray' };
+
+    function groupsData() {
+      var q = document.getElementById('search').value.trim().toLowerCase();
+      var all = statuses.concat([NONE]);
+      return all.map(function (s) {
+        var cards = rows.filter(function (r) {
+          var sid = r.data && sfFind(statuses, r.data.id) ? r.data.id : NONE.id;
+          return sid === s.id && r.card.name.toLowerCase().indexOf(q) !== -1;
+        });
+        return { status: s, cards: cards };
+      });
+    }
+
+    function draw() {
+      var data = groupsData();
+      var $sum = document.getElementById('summary');
+      $sum.innerHTML = '';
+      data.forEach(function (g) {
+        var chip = document.createElement('span');
+        chip.className = 'sf-chip' + (active === g.status.id ? ' is-active' : '');
+        chip.innerHTML = '<span class="sf-dot" style="background:' + sfHex(g.status.color) + '"></span>' +
+          sfEsc(g.status.name) + ' <strong>' + g.cards.length + '</strong>';
+        chip.addEventListener('click', function () { active = active === g.status.id ? null : g.status.id; draw(); });
+        $sum.appendChild(chip);
+      });
+
+      var $g = document.getElementById('groups');
+      $g.innerHTML = '';
+      data.filter(function (g) { return g.cards.length && (!active || active === g.status.id); })
+        .forEach(function (g) {
+          var sec = document.createElement('div');
+          sec.className = 'sf-group';
+          sec.innerHTML = '<h3><span class="sf-dot" style="background:' + sfHex(g.status.color) + '"></span>' +
+            sfEsc(g.status.name) + ' <span class="sf-muted">(' + g.cards.length + ')</span></h3>';
+          g.cards.forEach(function (r) {
+            var a = document.createElement('div');
+            a.className = 'sf-card';
+            a.innerHTML = sfEsc(r.card.name) + '<div class="sf-muted">Lista: ' + sfEsc(listNames[r.card.idList] || '—') +
+              (r.data && r.data.at ? ' · atualizado ' + sfDate(r.data.at) + (r.data.by ? ' por ' + sfEsc(r.data.by) : '') : '') + '</div>';
+            a.addEventListener('click', function () { t.showCard(r.card.id); });
+            sec.appendChild(a);
+          });
+          $g.appendChild(sec);
+        });
+      if (!$g.children.length) $g.innerHTML = '<p class="sf-empty">Nenhum card encontrado.</p>';
+    }
+
+    document.getElementById('search').addEventListener('input', draw);
+
+    t.render(function () {
+      return TrelloPowerUp.Promise.all([sfGetStatuses(t), t.cards('id', 'name', 'idList'), t.lists('id', 'name')])
+        .then(function (r) {
+          statuses = r[0];
+          listNames = {};
+          r[2].forEach(function (l) { listNames[l.id] = l.name; });
+          return TrelloPowerUp.Promise.all(r[1].map(function (c) {
+            return t.get(c.id, 'shared', 'status').then(function (d) { return { card: c, data: d }; });
+          }));
+        })
+        .then(function (res) { rows = res; draw(); });
+    });
+  </script>
+</body>
+</html>
