@@ -8,17 +8,22 @@
 </head>
 <body>
   <div id="content">
-    <input id="search" class="sf-input" type="text" placeholder="Buscar status…" autocomplete="off">
-    <ul id="list" class="sf-list"></ul>
-    <p id="meta" class="sf-muted"></p>
-    <button id="clear" class="mod-danger" style="width:100%;margin:4px 0 0">Remover status</button>
+    <div id="picker">
+      <input id="search" class="sf-input" type="text" placeholder="Buscar status…" autocomplete="off">
+      <ul id="list" class="sf-list"></ul>
+      <p id="meta" class="sf-muted"></p>
+      <button id="clear" class="mod-danger" style="width:100%;margin:4px 0 0">Remover status</button>
+    </div>
+    <div id="msg"></div>
   </div>
   <script src="./common.js"></script>
   <script>
-    var t = TrelloPowerUp.iframe();
-    var statuses = [], current = null;
+    var t = sfIframe();
+    var statuses = [], current = null, card = null, lists = {}, movePos = 'top';
     var $list = document.getElementById('list');
     var $search = document.getElementById('search');
+    var $msg = document.getElementById('msg');
+    var $picker = document.getElementById('picker');
 
     function render() {
       var q = $search.value.trim().toLowerCase();
@@ -26,12 +31,15 @@
       $list.innerHTML = items.length ? '' : '<li class="sf-empty">Nenhum status encontrado</li>';
       items.forEach(function (s) {
         var isCur = current && current.id === s.id;
+        var dest = s.list && lists[s.list] && sfKeyOk()
+          ? '<div class="sf-muted">→ ' + sfEsc(lists[s.list]) + '</div>' : '';
         var li = document.createElement('li');
         li.innerHTML =
           '<button class="sf-status' + (isCur ? ' is-current' : '') + '">' +
           '<span class="sf-dot" style="background:' + sfHex(s.color) + '"></span>' +
-          sfEsc(s.name) + (isCur ? '<span class="sf-check">✓</span>' : '') + '</button>';
-        li.firstChild.addEventListener('click', function () { setStatus(s.id); });
+          '<span>' + sfEsc(s.name) + dest + '</span>' +
+          (isCur ? '<span class="sf-check">✓</span>' : '') + '</button>';
+        li.firstChild.addEventListener('click', function () { setStatus(s); });
         $list.appendChild(li);
       });
       document.getElementById('meta').textContent = current && current.at
@@ -41,10 +49,55 @@
       t.sizeTo('#content');
     }
 
-    function setStatus(id) {
-      t.member('fullName').then(function (m) {
-        return t.set('card', 'shared', 'status', { id: id, at: Date.now(), by: m.fullName || '' });
-      }).then(function () { t.closePopup(); });
+    function showMsg(html, cls) {
+      $picker.style.display = 'none';
+      $msg.innerHTML = '<div class="sf-box ' + (cls || '') + '">' + html + '</div>';
+      t.sizeTo('#content');
+    }
+
+    function needsMove(s) {
+      return sfKeyOk() && s.list && lists[s.list] && card && card.idList !== s.list;
+    }
+
+    function doMove(s) {
+      return sfMoveCard(t, card.id, s.list, movePos);
+    }
+
+    function handleMoveError(s, err) {
+      if (err && err.needsAuth) {
+        showMsg(
+          '<strong>Status salvo ✓</strong><br>Para mover o card para <strong>' + sfEsc(lists[s.list]) +
+          '</strong> automaticamente, autorize o Power-Up. É só uma vez por pessoa.' +
+          '<br><button id="auth" class="mod-primary">Autorizar</button><button id="skip">Agora não</button>'
+        );
+        document.getElementById('auth').addEventListener('click', function () {
+          sfAuthorize(t)
+            .then(function () { return doMove(s); })
+            .then(function () { t.closePopup(); })
+            .catch(function (e) {
+              showMsg('Não foi possível autorizar ou mover o card.<br><span class="sf-muted">' +
+                sfEsc((e && e.message) || 'Autorização cancelada') + '</span><br><button id="close">Fechar</button>', 'is-error');
+              document.getElementById('close').addEventListener('click', function () { t.closePopup(); });
+            });
+        });
+        document.getElementById('skip').addEventListener('click', function () { t.closePopup(); });
+      } else {
+        showMsg('<strong>Status salvo ✓</strong>, mas o card não pôde ser movido.<br><span class="sf-muted">' +
+          sfEsc((err && err.message) || String(err)) + '</span><br><button id="close">Fechar</button>', 'is-error');
+        document.getElementById('close').addEventListener('click', function () { t.closePopup(); });
+      }
+    }
+
+    function setStatus(s) {
+      t.member('fullName')
+        .then(function (m) {
+          return t.set('card', 'shared', 'status', { id: s.id, at: Date.now(), by: m.fullName || '' });
+        })
+        .then(function () {
+          if (!needsMove(s)) return t.closePopup();
+          return doMove(s).then(function () { t.closePopup(); })
+            .catch(function (err) { handleMoveError(s, err); });
+        });
     }
 
     document.getElementById('clear').addEventListener('click', function () {
@@ -59,8 +112,20 @@
     });
 
     t.render(function () {
-      return TrelloPowerUp.Promise.all([sfGetStatuses(t), t.get('card', 'shared', 'status')])
-        .then(function (r) { statuses = r[0]; current = r[1] || null; render(); $search.focus(); });
+      if ($msg.innerHTML) return; // não redesenha enquanto mostra mensagem
+      return TrelloPowerUp.Promise.all([
+        sfGetStatuses(t),
+        t.get('card', 'shared', 'status'),
+        t.card('id', 'idList'),
+        t.lists('id', 'name'),
+        t.get('board', 'shared', 'movePos', 'top')
+      ]).then(function (r) {
+        statuses = r[0]; current = r[1] || null; card = r[2]; movePos = r[4];
+        lists = {};
+        r[3].forEach(function (l) { lists[l.id] = l.name; });
+        render();
+        $search.focus();
+      });
     });
   </script>
 </body>

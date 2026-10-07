@@ -8,10 +8,18 @@
 </head>
 <body>
   <div id="content">
-    <p class="sf-muted" style="margin:0 0 8px">Status deste quadro, na ordem do fluxo. Sem limite de quantidade.</p>
+    <p class="sf-muted" style="margin:0 0 8px">Status deste quadro, na ordem do fluxo. Em cada um, escolha a lista (coluna do responsável) para onde o card vai ao receber o status.</p>
+    <div id="keywarn"></div>
     <div id="rows"></div>
     <div class="sf-actions">
       <button id="add">+ Adicionar status</button>
+    </div>
+    <div class="sf-field">
+      <label for="pos">Ao mover, colocar o card</label>
+      <select id="pos">
+        <option value="top">No topo da lista</option>
+        <option value="bottom">No final da lista</option>
+      </select>
     </div>
     <div class="sf-actions">
       <button id="save" class="mod-primary">Salvar</button>
@@ -19,13 +27,15 @@
     </div>
     <div id="error" class="sf-error"></div>
     <p id="count" class="sf-muted"></p>
+    <div id="auth"></div>
   </div>
   <script src="./common.js"></script>
   <script>
-    var t = TrelloPowerUp.iframe();
-    var list = [];
+    var t = sfIframe();
+    var list = [], boardLists = [];
     var $rows = document.getElementById('rows');
     var $err = document.getElementById('error');
+    var $pos = document.getElementById('pos');
 
     function colorOptions(sel) {
       return Object.keys(SF_COLORS).map(function (k) {
@@ -33,21 +43,43 @@
       }).join('');
     }
 
+    function listOptions(sel) {
+      var html = '<option value="">Não mover</option>';
+      var found = !sel;
+      boardLists.forEach(function (l) {
+        if (l.id === sel) found = true;
+        html += '<option value="' + l.id + '"' + (l.id === sel ? ' selected' : '') + '>' + sfEsc(l.name) + '</option>';
+      });
+      if (!found) html += '<option value="' + sfEsc(sel) + '" selected>(lista arquivada/removida)</option>';
+      return html;
+    }
+
     function render() {
       $rows.innerHTML = '';
       list.forEach(function (s, i) {
-        var row = document.createElement('div');
-        row.className = 'sf-row';
-        row.innerHTML =
-          '<span class="sf-dot" style="background:' + sfHex(s.color) + '"></span>' +
-          '<input type="text" maxlength="40" value="' + sfEsc(s.name) + '" placeholder="Nome do status">' +
-          '<select title="Cor">' + colorOptions(s.color) + '</select>' +
-          '<button class="sf-icon-btn" title="Subir"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
-          '<button class="sf-icon-btn" title="Descer"' + (i === list.length - 1 ? ' disabled' : '') + '>↓</button>' +
-          '<button class="sf-icon-btn" title="Excluir">✕</button>';
-        var inp = row.querySelector('input'), sel = row.querySelector('select'), btns = row.querySelectorAll('button');
+        var item = document.createElement('div');
+        item.className = 'sf-item';
+        item.innerHTML =
+          '<div class="sf-row">' +
+            '<span class="sf-dot" style="background:' + sfHex(s.color) + '"></span>' +
+            '<input type="text" maxlength="40" value="' + sfEsc(s.name) + '" placeholder="Nome do status">' +
+            '<select class="sf-color" title="Cor">' + colorOptions(s.color) + '</select>' +
+          '</div>' +
+          '<div class="sf-row">' +
+            '<span class="sf-arrow" title="Mover para a lista">→</span>' +
+            '<select class="sf-list-sel" title="Mover o card para esta lista"' + (sfKeyOk() ? '' : ' disabled') + '>' +
+              listOptions(s.list) + '</select>' +
+            '<button class="sf-icon-btn" title="Subir"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+            '<button class="sf-icon-btn" title="Descer"' + (i === list.length - 1 ? ' disabled' : '') + '>↓</button>' +
+            '<button class="sf-icon-btn" title="Excluir">✕</button>' +
+          '</div>';
+        var inp = item.querySelector('input');
+        var col = item.querySelector('.sf-color');
+        var dest = item.querySelector('.sf-list-sel');
+        var btns = item.querySelectorAll('button');
         inp.addEventListener('input', function () { s.name = inp.value; updateCount(); });
-        sel.addEventListener('change', function () { s.color = sel.value; render(); });
+        col.addEventListener('change', function () { s.color = col.value; render(); });
+        dest.addEventListener('change', function () { s.list = dest.value || undefined; updateCount(); });
         btns[0].addEventListener('click', function () { move(i, -1); });
         btns[1].addEventListener('click', function () { move(i, 1); });
         btns[2].addEventListener('click', function () {
@@ -55,7 +87,7 @@
             list.splice(i, 1); render();
           }
         });
-        $rows.appendChild(row);
+        $rows.appendChild(item);
       });
       updateCount();
       t.sizeTo('#content');
@@ -69,14 +101,45 @@
     }
 
     function clean() {
-      return list.map(function (s) { return { id: s.id, name: s.name.trim(), color: s.color }; });
+      return list.map(function (s) {
+        var o = { id: s.id, name: s.name.trim(), color: s.color };
+        if (s.list) o.list = s.list;
+        return o;
+      });
+    }
+
+    function payloadSize() {
+      return JSON.stringify({ statuses: clean(), movePos: $pos.value }).length;
     }
 
     function updateCount() {
-      var size = JSON.stringify(clean()).length;
       document.getElementById('count').textContent =
-        list.length + ' status · ' + Math.round(size / SF_MAX_CHARS * 100) + '% do espaço usado';
+        list.length + ' status · ' + Math.round(payloadSize() / SF_MAX_CHARS * 100) + '% do espaço usado';
     }
+
+    function renderAuth() {
+      var $a = document.getElementById('auth');
+      if (!sfKeyOk()) {
+        document.getElementById('keywarn').innerHTML =
+          '<div class="sf-box">Movimentação automática desativada: cole a API key do Power-Up no arquivo <strong>common.js</strong>.</div>';
+        return;
+      }
+      sfGetToken(t).then(function (tok) {
+        $a.innerHTML = tok
+          ? '<div class="sf-box is-ok">Você autorizou a movimentação automática ✓<br><button id="disc">Desconectar</button></div>'
+          : '<div class="sf-box">Você ainda não autorizou a movimentação automática (cada pessoa autoriza uma vez).<br><button id="doauth" class="mod-primary">Autorizar agora</button></div>';
+        var d = document.getElementById('disc'), a = document.getElementById('doauth');
+        if (d) d.addEventListener('click', function () { sfClearToken(t).then(renderAuth); });
+        if (a) a.addEventListener('click', function () {
+          sfAuthorize(t).then(renderAuth).catch(function () {
+            $err.textContent = 'Autorização cancelada ou bloqueada pelo navegador.';
+          });
+        });
+        t.sizeTo('#content');
+      });
+    }
+
+    $pos.addEventListener('change', updateCount);
 
     document.getElementById('add').addEventListener('click', function () {
       var keys = Object.keys(SF_COLORS);
@@ -100,14 +163,21 @@
       if (data.some(function (s) { return !s.name; })) { $err.textContent = 'Preencha o nome de todos os status.'; return; }
       var names = data.map(function (s) { return s.name.toLowerCase(); });
       if (names.some(function (n, i) { return names.indexOf(n) !== i; })) { $err.textContent = 'Há status com nomes repetidos.'; return; }
-      if (JSON.stringify(data).length > SF_MAX_CHARS) { $err.textContent = 'Limite de espaço do Trello atingido. Encurte nomes ou remova status.'; return; }
-      t.set('board', 'shared', 'statuses', data).then(function () { t.closePopup(); });
+      if (payloadSize() > SF_MAX_CHARS) { $err.textContent = 'Limite de espaço do Trello atingido. Encurte nomes ou remova status.'; return; }
+      t.set('board', 'shared', { statuses: data, movePos: $pos.value }).then(function () { t.closePopup(); });
     });
 
     t.render(function () {
-      return sfGetStatuses(t).then(function (s) {
-        list = s.map(function (x) { return Object.assign({}, x); });
+      return TrelloPowerUp.Promise.all([
+        sfGetStatuses(t),
+        t.lists('id', 'name'),
+        t.get('board', 'shared', 'movePos', 'top')
+      ]).then(function (r) {
+        list = r[0].map(function (x) { return Object.assign({}, x); });
+        boardLists = r[1];
+        $pos.value = r[2] === 'bottom' ? 'bottom' : 'top';
         render();
+        renderAuth();
       });
     });
   </script>

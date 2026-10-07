@@ -1,5 +1,5 @@
 /* Status & Fluxo IMendes — connector principal */
-/* global TrelloPowerUp, sfGetStatuses, sfFind */
+/* global TrelloPowerUp, sfGetStatuses, sfFind, sfKeyOk, SF_APP_KEY, SF_APP_NAME, SF_APP_AUTHOR */
 
 var BASE = window.location.href.replace(/[^/]*$/, '');
 var ICON_DARK = BASE + 'icon.svg';
@@ -77,4 +77,4 @@ TrelloPowerUp.initialize({
 
   // Engrenagem em Power-Ups > Status & Fluxo > Configurações
   'show-settings': openSettings
-});
+}, sfKeyOk() ? { appKey: SF_APP_KEY, appName: SF_APP_NAME, appAuthor: SF_APP_AUTHOR } : undefined);

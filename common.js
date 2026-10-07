@@ -1,6 +1,66 @@
 /* Status & Fluxo IMendes — funções compartilhadas */
 /* global TrelloPowerUp */
 
+// ============================================================
+//  CONFIGURAÇÃO — cole aqui a API KEY do Power-Up
+//  (trello.com/power-ups/admin → seu Power-Up → aba "API key")
+//  ⚠ NUNCA cole o TOKEN aqui. Cada usuário autoriza pelo próprio Trello.
+// ============================================================
+var SF_APP_KEY    = '875a66d5811489a29e7c5430d25afc5d';
+var SF_APP_NAME   = 'Status & Fluxo IMendes';
+var SF_APP_AUTHOR = 'IMendes';
+
+function sfKeyOk() {
+  return !!SF_APP_KEY && SF_APP_KEY.indexOf('COLE_') !== 0;
+}
+
+function sfIframe() {
+  return sfKeyOk()
+    ? TrelloPowerUp.iframe({ appKey: SF_APP_KEY, appName: SF_APP_NAME, appAuthor: SF_APP_AUTHOR })
+    : TrelloPowerUp.iframe();
+}
+
+// Busca o token do usuário (API do Trello + cópia privada como reserva,
+// por causa do particionamento de armazenamento do Chrome)
+function sfGetToken(t) {
+  return TrelloPowerUp.Promise.try(function () {
+    return t.getRestApi().getToken();
+  }).catch(function () { return null; }).then(function (tok) {
+    return tok || t.get('member', 'private', 'sfToken');
+  });
+}
+
+function sfAuthorize(t) {
+  return t.getRestApi().authorize({ scope: 'read,write', expiration: 'never' }).then(function (tok) {
+    return t.set('member', 'private', 'sfToken', tok).then(function () { return tok; });
+  });
+}
+
+function sfClearToken(t) {
+  return t.getRestApi().clearToken().catch(function () {}).then(function () {
+    return t.remove('member', 'private', 'sfToken');
+  });
+}
+
+// Move o card via REST API. Rejeita com {needsAuth:true} se faltar autorização.
+function sfMoveCard(t, cardId, listId, pos) {
+  return sfGetToken(t).then(function (token) {
+    if (!token) throw { needsAuth: true };
+    var url = 'https://api.trello.com/1/cards/' + encodeURIComponent(cardId) +
+      '?idList=' + encodeURIComponent(listId) +
+      '&pos=' + (pos === 'bottom' ? 'bottom' : 'top') +
+      '&key=' + encodeURIComponent(SF_APP_KEY) +
+      '&token=' + encodeURIComponent(token);
+    return fetch(url, { method: 'PUT', headers: { Accept: 'application/json' } }).then(function (r) {
+      if (r.status === 401) {
+        return sfClearToken(t).then(function () { throw { needsAuth: true }; });
+      }
+      if (!r.ok) return r.text().then(function (tx) { throw new Error(tx || ('Erro ' + r.status)); });
+      return r.json();
+    });
+  });
+}
+
 // Cores aceitas pelo Trello em badges (não aceita hex)
 var SF_COLORS = {
   'light-gray': { label: 'Cinza',    hex: '#b3bac5' },

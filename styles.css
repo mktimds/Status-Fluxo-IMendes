@@ -27,6 +27,22 @@ body { margin: 0; font-size: 14px; color: #172b4d; }
 .sf-actions button { margin: 0; }
 .sf-error { color: #eb5a46; font-size: 12px; min-height: 16px; margin-top: 6px; }
 
+.sf-item { padding: 6px; margin-bottom: 6px; border-radius: 4px; background: #f7f8f9; }
+.sf-item .sf-row { margin-bottom: 4px; }
+.sf-item .sf-row:last-child { margin-bottom: 0; }
+.sf-item select.sf-list-sel { flex: 1; width: auto; min-width: 0; }
+.sf-arrow { color: #5e6c84; font-size: 12px; }
+.sf-box {
+  padding: 8px 10px; margin: 6px 0; border-radius: 4px;
+  background: #fff7d6; color: #172b4d; font-size: 13px;
+}
+.sf-box.is-error { background: #ffebe6; }
+.sf-box.is-ok { background: #e3fcef; }
+.sf-box button { margin: 6px 6px 0 0; }
+.sf-field { margin-top: 10px; }
+.sf-field label { display: block; font-size: 12px; font-weight: 600; color: #5e6c84; margin-bottom: 2px; }
+.sf-field select { width: 100%; margin: 0; }
+
 /* Visão geral */
 .sf-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .sf-chip {
